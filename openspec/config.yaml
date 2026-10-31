@@ -1,0 +1,9 @@
+schema: spec-driven
+context: |
+  This is an iOS self-management app using public Apple APIs, with reusable
+  application lists, allow-list/block-list policies, and iOS Focus integration.
+  Preserve the requirement to hide notifications from blocked apps, but treat
+  its feasibility as unverified until physical-device testing provides evidence.
+  Do not substitute manual notification settings without user agreement.
+  Use privacy-preserving system application selection for the baseline.
+  Consult docs/product-brief.md for product intent and unresolved decisions.
