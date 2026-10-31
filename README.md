@@ -12,7 +12,7 @@ Dumbo is an early working prototype built with SwiftUI and Apple's Screen Time A
 
 - **Named app lists** using Apple's application picker.
 - **Block or allow:** block the apps in a list, or allow only those apps within iOS's supported shielding scope.
-- **Manual controls:** start, stop, and switch policies from the app.
+- **Manual controls:** start, stop, and switch policies from the app, or continue a paused Focus policy.
 - **Focus integration:** choose a list and mode in an iOS Focus Filter.
 - **Live edits:** changes to the active list are reapplied immediately.
 - **App previews:** cards show up to three app icons and an overflow count.
@@ -65,7 +65,7 @@ Each card contains a **Block / Allow** selector and a **Start** button:
 
 - **Block** restricts the selected apps.
 - **Allow** restricts other shieldable apps, keeping the selected apps available. Allow-lists require **1–50 applications**. Essential system exceptions need further device testing.
-- **Stop** clears Dumbo's restrictions. Other apps' or system Screen Time restrictions may still apply.
+- **Stop** ends manual restrictions; **Pause** suspends Focus-driven restrictions. Both clear Dumbo's restrictions. If a Focus policy is current, App access stays visible as **Focus paused**, with **Continue restrictions** to reapply its list and mode. Other apps' or system Screen Time restrictions may still apply.
 - Changing the mode on an active card offers **Apply** to activate that change.
 
 Tap the name or pencil to edit a list. Swipe its card to delete it; active lists must be stopped before deletion.
@@ -77,7 +77,15 @@ Tap the name or pencil to edit a list. Swipe its card to delete it; active lists
 3. Select the list and blocking mode, then add the filter.
 4. If that Focus is already enabled, switch it off and on. In device testing, adding a filter to an already active Focus did not apply it until reactivation.
 
-Only one Dumbo policy is effective at a time. A delivered Focus activation replaces the current policy. A later manual override survives Focus reset; manually stopping restrictions lasts until another activation is delivered. Delivery timing and background behavior remain part of device verification.
+Only one Dumbo policy is effective at a time. A delivered Focus activation replaces the current policy. A later manual override survives Focus reset; manually stopping restrictions pauses them until **Continue restrictions** is chosen or another activation is delivered. Continue keeps Focus ownership and uses the latest saved selection. A delivered Focus reset removes the continuation, while a new Focus activation replaces it. Delivery timing and background behavior remain part of device verification.
+
+### Continuing a paused Focus
+
+With a Dumbo Focus Filter active, tap **Pause restrictions**. The App access card changes to **Focus paused** and offers **Continue restrictions**. Continue restores the Focus list and mode; it does not create a manual override or switch the system Focus.
+
+Edits made while paused are used when you continue. A manual-only policy has no Focus continuation. Deleting the referenced list, revoking permission, or receiving Focus reset clears the saved continuation. Paused context persists across app launches.
+
+When upgrading from a version without this feature, an active Focus-owned policy can be recovered automatically. If it was already stopped by the old version, toggle that Focus off/on once so Dumbo receives its configuration.
 
 ### Permission recovery
 
@@ -91,7 +99,7 @@ The shared storage and policy logic can be tested on macOS without changing the 
 swift test
 ```
 
-The suite currently contains **20 passing tests**, covering persistence, corrupt/newer documents, concurrent writes, failed saves, allow-list bounds, policy transitions, Focus reset, and authorization recovery.
+The suite currently contains **33 passing tests**, covering persistence, corrupt/newer documents, concurrent writes, failed saves, allow-list bounds, policy transitions, Focus reset, and authorization recovery.
 
 Build the iPhone app from Xcode or the command line:
 

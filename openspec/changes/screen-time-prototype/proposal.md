@@ -8,7 +8,7 @@ Dumbo currently opens a SwiftUI starter screen. Before investing in the full app
 
 - Add individual Screen Time authorization and reusable named application lists using Apple's private-token picker.
 - Add manual allow-list and block-list activation with a customizable system deny screen and a Stop control.
-- Add an iOS Focus Filter that selects a saved list and mode, applying restrictions while Dumbo is closed.
+- Add an iOS Focus Filter that selects a saved list and mode, applying restrictions while Dumbo is closed, with manual Stop and Continue controls that preserve Focus ownership.
 - Provide explicit verification status and a repeatable physical-device test matrix for notification hiding; do not claim suppression works before testing.
 - Keep all selections and policy state on the device. No backend, accounts, payments, schedules, or usage budgets in this change.
 

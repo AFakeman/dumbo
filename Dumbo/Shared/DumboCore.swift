@@ -33,6 +33,9 @@ struct LibraryDocument: Codable, Equatable {
     var version = 1
     var lists: [SavedAppList] = []
     var active: ActivePolicy?
+    // Last valid policy delivered by the current iOS Focus, even while paused
+    // or temporarily overridden by a manual policy. Cleared on Focus reset.
+    var focusPolicy: ActivePolicy?
     var lastError: String?
     var wasAuthorized = false
     var updatedAt = Date()
@@ -43,8 +46,28 @@ struct LibraryDocument: Codable, Equatable {
         }
         try validate(list, policy.mode)
         active = policy
+        if policy.origin == .focus { focusPolicy = policy }
         wasAuthorized = true
         lastError = nil
+    }
+
+    var pausedFocusPolicy: ActivePolicy? {
+        active == nil ? focusPolicy : nil
+    }
+
+    mutating func stop() {
+        // Also handles documents created before focusPolicy was introduced.
+        if let active, active.origin == .focus { focusPolicy = active }
+        active = nil
+        lastError = nil
+    }
+
+    mutating func continueFocus(validate: (SavedAppList, PolicyMode) throws -> Void) throws {
+        guard active == nil else { throw DumboError.message("Restrictions are already active.") }
+        guard let policy = focusPolicy, policy.origin == .focus else {
+            throw DumboError.message("There are no current Focus restrictions to continue.")
+        }
+        try activate(policy, validate: validate)
     }
 
     mutating func observeAccess(_ access: ScreenTimeAccess) {
@@ -65,6 +88,7 @@ struct LibraryDocument: Codable, Equatable {
             if access == .denied { revoke() }
             else {
                 active = nil
+                focusPolicy = nil
                 lastError = "Screen Time access could not be confirmed. Open Dumbo to allow access."
             }
             return
@@ -73,16 +97,19 @@ struct LibraryDocument: Codable, Equatable {
             try activate(ActivePolicy(listID: id, mode: mode, origin: .focus), validate: validate)
         } catch {
             active = nil
+            focusPolicy = nil
             lastError = "Focus policy could not be applied: \(error.localizedDescription) Reconfigure its Dumbo filter."
         }
     }
 
     mutating func resetFocus() {
+        focusPolicy = nil
         if active?.origin == .focus { active = nil; lastError = nil }
     }
 
     mutating func revoke() {
         active = nil
+        focusPolicy = nil
         wasAuthorized = false
         for index in lists.indices { lists[index].selectionValid = false }
         lastError = Self.revokedAccessMessage
@@ -91,6 +118,7 @@ struct LibraryDocument: Codable, Equatable {
     mutating func delete(_ id: UUID) throws {
         guard active?.listID != id else { throw DumboError.message("Stop the active policy before deleting its list.") }
         lists.removeAll { $0.id == id }
+        if focusPolicy?.listID == id { focusPolicy = nil }
     }
 }
 
@@ -154,8 +182,11 @@ final class LibraryRepository {
     private func load() throws -> LibraryDocument {
         let file = directory.appendingPathComponent("library.json")
         do {
-            let document = try JSONDecoder().decode(LibraryDocument.self, from: Data(contentsOf: file))
+            var document = try JSONDecoder().decode(LibraryDocument.self, from: Data(contentsOf: file))
             guard document.version == 1 else { throw DumboError.message("This library was saved by a newer Dumbo version.") }
+            if document.focusPolicy == nil, document.active?.origin == .focus {
+                document.focusPolicy = document.active
+            }
             return document
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             return LibraryDocument()

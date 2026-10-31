@@ -27,7 +27,10 @@ struct AppListCard: View {
 
     private var isActive: Bool { activePolicy?.listID == list.id }
     private var canStop: Bool { isActive && activePolicy?.mode == mode }
-    private var actionTitle: String { canStop ? "Stop" : isActive ? "Apply" : "Start" }
+    private var actionTitle: String {
+        if canStop { return activePolicy?.origin == .focus ? "Pause" : "Stop" }
+        return isActive ? "Apply" : "Start"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -121,7 +124,7 @@ struct AppListCard: View {
                 .buttonStyle(.plain)
                 .disabled(!canStop && (!canManage || !list.selectionValid || preview.tokens == nil))
                 .opacity(canStop || (canManage && list.selectionValid && preview.tokens != nil) ? 1 : 0.45)
-                .accessibilityLabel(canStop ? "Stop restrictions" : "\(actionTitle) \(mode.title.lowercased()) for \(list.name)")
+                .accessibilityLabel(canStop ? "\(actionTitle) restrictions" : "\(actionTitle) \(mode.title.lowercased()) for \(list.name)")
             }
         }
         .padding(16)

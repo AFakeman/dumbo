@@ -33,7 +33,11 @@ final class ScreenTimeController {
             document.observeAccess(access)
             if let policy = document.active {
                 do { _ = try plan(for: policy, in: document) }
-                catch { document.active = nil; document.lastError = error.localizedDescription }
+                catch {
+                    document.active = nil
+                    if policy.origin == .focus { document.focusPolicy = nil }
+                    document.lastError = error.localizedDescription
+                }
             }
         }, afterSave: { if access != .unknown { apply($0) } })
     }
@@ -70,7 +74,18 @@ final class ScreenTimeController {
     func stop() throws -> LibraryDocument {
         // Always offer a way out, including when the shared document is unreadable.
         store.clearAllSettings()
-        return try repository.update({ $0.active = nil; $0.lastError = nil }, afterSave: { apply($0) })
+        return try repository.update({ $0.stop() }, afterSave: { apply($0) })
+    }
+
+    func continueFocus() throws -> LibraryDocument {
+        guard authorized else { throw DumboError.message("Allow Screen Time access before continuing restrictions.") }
+        // Resolve the current Focus context inside the lock, not from a stale UI
+        // snapshot. A reset or switch delivered before the tap must take priority.
+        return try repository.update({ document in
+            try document.continueFocus { list, mode in
+                _ = try plan(for: list, mode: mode)
+            }
+        }, afterSave: { apply($0) })
     }
 
     func handleFocus(id: UUID?, mode: PolicyMode) async throws {
@@ -107,7 +122,7 @@ final class ScreenTimeController {
         store.clearAllSettings()
         try repository.update { document in
             if access == .denied { document.revoke() }
-            else { document.active = nil }
+            else { document.active = nil; document.focusPolicy = nil }
             document.lastError = "Focus access could not be confirmed. Open Dumbo to allow Screen Time access. \(error.localizedDescription)"
         }
     }

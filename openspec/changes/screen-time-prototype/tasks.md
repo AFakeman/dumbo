@@ -40,6 +40,12 @@
 - [x] 6.1 Build the app and all embedded extensions and run focused tests; verify no new build errors and retain the test/build summary.
 - [ ] 6.2 Walk through authorization, saving a list, manual activation, deny screen, Stop, Focus switching, and revocation on device; verify results match the specs and leave blocked/unperformed tasks unchecked.
 
+## 7. Continue paused Focus restrictions
+
+- [x] 7.1 Persist the current Focus policy separately from effective enforcement and implement Stop/Continue/reset transitions; verify migration, reopening, manual overrides, permission loss, deletion, invalid resume, and Focus replacement with focused tests.
+- [x] 7.2 Add the paused Focus card with Continue restrictions and apply the latest saved selection under the shared storage lock; verify the app and embedded extensions build, core tests pass, and Focus registration metadata remains packaged.
+- [ ] 7.3 Verify on iPhone that Focus → Stop → Continue reapplies the list, edits while paused take effect only on Continue, and Focus off removes continuation; record the observed results without marking unperformed cases complete.
+
 ## Workflow follow-up
 
 - Archive only after implementation and verification are complete; preserve unresolved platform limitations explicitly.

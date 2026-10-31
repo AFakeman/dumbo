@@ -67,6 +67,10 @@ final class AppModel: ObservableObject {
 
     func delete(_ list: SavedAppList) { _ = perform { try $0.delete(list.id) } }
 
+    func continueFocus() {
+        _ = perform { try $0.continueFocus() }
+    }
+
     func stop() {
         // Clearing is still available even if the library or App Group cannot be read.
         ManagedSettingsStore(named: .init("dumbo-policy")).clearAllSettings()

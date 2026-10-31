@@ -7,7 +7,7 @@ struct ContentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var showsActivePolicy: Bool {
-        model.document.active != nil && model.authorized && model.ready
+        (model.document.active ?? model.document.pausedFocusPolicy) != nil && model.authorized && model.ready
     }
 
     private var policyTransition: AnyTransition {
@@ -36,12 +36,16 @@ struct ContentView: View {
                         }
                     }
                 }
-                if let policy = model.document.active, model.authorized, model.ready {
+                if let policy = model.document.active ?? model.document.pausedFocusPolicy, model.authorized, model.ready {
                     Section {
                         ActivePolicyCard(
                             name: model.document.lists.first { $0.id == policy.listID }?.name ?? "Unavailable list",
                             policy: policy,
-                            stop: { model.stop() }
+                            isPaused: model.document.active == nil,
+                            action: {
+                                if model.document.active == nil { model.continueFocus() }
+                                else { model.stop() }
+                            }
                         )
                         .listRowInsets(EdgeInsets(top: 6, leading: 0, bottom: 6, trailing: 0))
                         .listRowBackground(Color.clear)
@@ -60,7 +64,7 @@ struct ContentView: View {
                 if !model.ready {
                     Section("Library unavailable") {
                         Button("Try loading library again") { model.refresh() }
-                        Button("Stop restrictions", role: .destructive) { model.stop() }
+                        Button("Pause restrictions", role: .destructive) { model.stop() }
                     }
                 }
                 if let message = model.document.lastError {
@@ -110,8 +114,6 @@ struct ContentView: View {
                         .accessibilityLabel("New app list")
                     }
                     .textCase(nil)
-                } footer: {
-                    Text("Allow-lists support 1–50 apps. Some essential system apps may remain available. Other Screen Time restrictions can still apply.")
                 }
             }
             .animation(
@@ -158,7 +160,10 @@ private struct ListEditor: View {
                         Label(token)
                     }
                 } footer: {
-                    Text("Expand categories and choose individual apps. Whole categories and websites aren't supported in this prototype.")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Expand categories and choose individual apps. Whole categories and websites aren't supported in this prototype.")
+                        Text("Allow-lists support 1–50 apps. Some essential system apps may remain available. Other Screen Time restrictions can still apply.")
+                    }
                 }
             }
             .navigationTitle("App list")

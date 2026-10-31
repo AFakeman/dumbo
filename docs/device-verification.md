@@ -15,7 +15,7 @@ The signed app and embedded Focus extension both contain the Family Controls ent
 
 Implemented: permission request and status refresh, named lists with Apple's picker and system labels, local persistence, manual allow/block activation and Stop, active-list deletion protection and edit reconciliation, deny-screen configuration and close action, and a Focus Filter with stable list identifiers. Notification observations and unverified cases are tracked in this document.
 
-The Foundation-only core suite runs with `swift test` from the repository root: 20 tests pass, covering persistence, corrupt and newer-schema documents, failed writes with no policy side effects, concurrent updates, allow-list boundaries, unsupported selections, policy replacement, missing/invalid Focus references, denied access, manual override/reset interaction, revocation, and active-list deletion protection. These tests do not simulate or validate Apple's enforcement or notifications.
+The Foundation-only core suite runs with `swift test` from the repository root: 33 tests pass, covering persistence, corrupt and newer-schema documents, failed writes with no policy side effects, concurrent updates, allow-list boundaries, unsupported selections, policy replacement, missing/invalid Focus references, denied access, manual override/reset interaction, revocation, and active-list deletion protection. These tests do not simulate or validate Apple's enforcement or notifications.
 
 An iPhone Air running iOS 27.0.1 is now connected. After refreshing device-specific provisioning profiles, the physical-device build succeeded. Dumbo was installed and launched successfully using Apple's device tools. User reports below confirm several app-access, live-edit, Focus, and notification behaviors. The matrices are a full-coverage checklist; partial observations do not establish every combination of mode, surface, and app state.
 
@@ -174,3 +174,19 @@ The signed device build and Focus metadata packaging check pass, and the updated
 Subsequent user-directed refinements removed the intro, Focus instructions, notification status section, and verification copy from the main screen. App access hides when inactive. Both active-policy and list cards now share compact rounded styling and capsule controls. List previews show up to three icons immediately left of the edit button, with the count beneath the name and a +N overflow count when needed. Mode descriptions remain available to accessibility services. The App access section animates insertion/removal and respects Reduce Motion.
 
 The purple elephant icon is installed as the app's 1024×1024 opaque app-icon asset. All UI changes were built and installed on the connected iPhone; the user confirmed the transition looked good. Earlier sections describe intermediate designs and test history, not the final UI. The verification matrices continue to track uncompleted combinations separately from the user-reported findings.
+
+## Continue paused Focus restrictions — 2026-10-31
+
+The user requested a way to resume Focus-owned restrictions after stopping them in Dumbo. The shared document now retains the last valid delivered Focus policy independently of its effective active policy. Stop clears enforcement but retains the Focus context. App access remains visible as Focus paused, with a Continue restrictions action that revalidates the latest list under the shared lock and reapplies it with Focus origin. Manual-only restrictions do not create a continuation. A later manual override leaves current Focus context available after it is stopped.
+
+Focus reset clears retained context while preserving a later active manual policy. New Focus activation replaces the old paused context; invalid activation, authorization revocation, or deletion of its referenced list clears that context. An invalid edited selection fails continuation without applying restrictions. Old version-1 documents with an active Focus policy infer the new optional context during load. Previously stopped old policies require one new Focus activation because the earlier version discarded their configuration.
+
+All 33 core tests pass, including 13 new pause/resume tests for persistence, live edits, manual overrides, reset/replacement, validation failure, deletion/revocation, stale UI after reset, and migration. The signed device build and packaged Focus metadata check pass, and the updated app installed and launched. Runtime Focus → Stop → Continue and the following device checks still need user confirmation:
+
+- Pause a Focus policy, edit its list, and confirm the apps remain unrestricted until Continue is tapped.
+- Continue and verify the latest saved list/mode is enforced and displayed as iOS Focus.
+- Pause, reopen Dumbo, and confirm the paused card persists without restarting restrictions.
+- Turn Focus off while paused and confirm its continuation disappears.
+- Switch to another configured Focus while paused and confirm the new policy replaces the old one.
+
+Focus lifecycle state follows iOS-delivered events; this feature does not introduce an API to query the system's Focus name or force callback delivery.

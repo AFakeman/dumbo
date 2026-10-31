@@ -234,6 +234,191 @@ final class DumboCoreTests: XCTestCase {
         XCTAssertEqual(document.lastError, "The Focus list no longer exists.")
     }
 
+    func testFocusStopThenContinuePreservesModeAndOwnership() throws {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        document.handleFocus(id: saved.id, mode: .allow, access: .approved) { _, _ in }
+        let expected = document.active
+        document.stop()
+        XCTAssertNil(document.active)
+        XCTAssertEqual(document.pausedFocusPolicy, expected)
+        try document.continueFocus { _, _ in }
+        XCTAssertEqual(document.active, expected)
+        XCTAssertEqual(document.active?.origin, .focus)
+        XCTAssertNil(document.pausedFocusPolicy)
+    }
+
+    func testPausedFocusSurvivesRepositoryReloadWithoutRestarting() throws {
+        let directory = temporaryDirectory()
+        let saved = list()
+        try LibraryRepository(directory: directory).update {
+            $0.lists = [saved]
+            $0.handleFocus(id: saved.id, mode: .block, access: .approved) { _, _ in }
+            $0.stop()
+        }
+        let restored = try LibraryRepository(directory: directory).read()
+        XCTAssertNil(restored.active)
+        XCTAssertEqual(restored.pausedFocusPolicy?.listID, saved.id)
+        XCTAssertEqual(restored.pausedFocusPolicy?.origin, .focus)
+    }
+
+    func testContinueUsesLatestListEditsWithoutActivatingWhilePaused() throws {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        document.handleFocus(id: saved.id, mode: .block, access: .approved) { _, _ in }
+        document.stop()
+        document.lists[0].selectionData = Data([9, 8, 7])
+        document.lists[0].name = "Renamed"
+        XCTAssertNil(document.active)
+        var received: SavedAppList?
+        try document.continueFocus { list, _ in received = list }
+        XCTAssertEqual(received?.selectionData, Data([9, 8, 7]))
+        XCTAssertEqual(received?.name, "Renamed")
+        XCTAssertEqual(document.active?.listID, saved.id)
+    }
+
+    func testFocusResetRemovesPausedContinuation() throws {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        document.handleFocus(id: saved.id, mode: .block, access: .approved) { _, _ in }
+        document.stop()
+        document.handleFocus(id: nil, mode: .block, access: .unknown) { _, _ in XCTFail("Reset must not validate") }
+        XCTAssertNil(document.active)
+        XCTAssertNil(document.focusPolicy)
+        XCTAssertThrowsError(try document.continueFocus { _, _ in })
+    }
+
+    func testFocusSwitchReplacesPausedContext() throws {
+        var document = LibraryDocument()
+        let first = list("First")
+        let second = list("Second")
+        document.lists = [first, second]
+        document.handleFocus(id: first.id, mode: .block, access: .approved) { _, _ in }
+        document.stop()
+        document.handleFocus(id: second.id, mode: .allow, access: .approved) { _, _ in }
+        XCTAssertEqual(document.active?.listID, second.id)
+        XCTAssertEqual(document.focusPolicy?.listID, second.id)
+        document.stop()
+        try document.continueFocus { _, _ in }
+        XCTAssertEqual(document.active, ActivePolicy(listID: second.id, mode: .allow, origin: .focus))
+    }
+
+    func testManualOnlyStopOffersNoFocusContinuation() throws {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        try document.activate(ActivePolicy(listID: saved.id, mode: .block, origin: .manual)) { _, _ in }
+        document.stop()
+        XCTAssertNil(document.pausedFocusPolicy)
+        XCTAssertThrowsError(try document.continueFocus { _, _ in })
+    }
+
+    func testStoppingManualOverrideCanReturnToCurrentFocus() throws {
+        var document = LibraryDocument()
+        let focus = list("Focus")
+        let manual = list("Manual")
+        document.lists = [focus, manual]
+        document.handleFocus(id: focus.id, mode: .allow, access: .approved) { _, _ in }
+        try document.activate(ActivePolicy(listID: manual.id, mode: .block, origin: .manual)) { _, _ in }
+        XCTAssertEqual(document.focusPolicy?.listID, focus.id)
+        document.stop()
+        try document.continueFocus { _, _ in }
+        XCTAssertEqual(document.active, ActivePolicy(listID: focus.id, mode: .allow, origin: .focus))
+        try document.activate(ActivePolicy(listID: manual.id, mode: .block, origin: .manual)) { _, _ in }
+        document.resetFocus()
+        XCTAssertEqual(document.active?.origin, .manual)
+        document.stop()
+        XCTAssertNil(document.pausedFocusPolicy)
+    }
+
+    func testRevocationAndDeletionRemovePausedContext() throws {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        document.handleFocus(id: saved.id, mode: .block, access: .approved) { _, _ in }
+        document.stop()
+        var revoked = document
+        revoked.observeAccess(.denied)
+        XCTAssertNil(revoked.focusPolicy)
+        XCTAssertThrowsError(try revoked.continueFocus { _, _ in })
+        try document.delete(saved.id)
+        XCTAssertNil(document.focusPolicy)
+        XCTAssertTrue(document.lists.isEmpty)
+        XCTAssertThrowsError(try document.continueFocus { _, _ in })
+    }
+
+    func testInvalidContinueDoesNotApplyOrForgetPausedPolicy() throws {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        document.handleFocus(id: saved.id, mode: .allow, access: .approved) { _, _ in }
+        document.stop()
+        let previous = document.focusPolicy
+        XCTAssertThrowsError(try document.continueFocus { _, _ in
+            throw DumboError.message("The edited allow-list is empty")
+        })
+        XCTAssertNil(document.active)
+        XCTAssertEqual(document.focusPolicy, previous)
+    }
+
+    func testFailedNewFocusDiscardsOldContinuation() {
+        var document = LibraryDocument()
+        let saved = list()
+        document.lists = [saved]
+        document.handleFocus(id: saved.id, mode: .block, access: .approved) { _, _ in }
+        document.stop()
+        document.handleFocus(id: UUID(), mode: .block, access: .approved) { _, _ in }
+        XCTAssertNil(document.focusPolicy)
+        XCTAssertNil(document.active)
+        XCTAssertNotNil(document.lastError)
+    }
+
+    func testContinueAfterResetReadsCurrentStateUnderRepositoryLock() throws {
+        let directory = temporaryDirectory()
+        let repository = LibraryRepository(directory: directory)
+        let saved = list()
+        try repository.update {
+            $0.lists = [saved]
+            $0.handleFocus(id: saved.id, mode: .block, access: .approved) { _, _ in }
+            $0.stop()
+        }
+        XCTAssertNotNil(try repository.read().pausedFocusPolicy)
+        // Simulate an extension reset after the app rendered its Continue button.
+        try LibraryRepository(directory: directory).update { $0.resetFocus() }
+        var applied = false
+        XCTAssertThrowsError(try repository.update({ try $0.continueFocus { _, _ in } }, afterSave: { _ in applied = true }))
+        XCTAssertFalse(applied)
+        XCTAssertNil(try repository.read().active)
+    }
+
+    func testOldActiveFocusDocumentInfersContinuationOnLoad() throws {
+        let directory = temporaryDirectory()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var oldDocument = LibraryDocument()
+        let saved = list()
+        oldDocument.lists = [saved]
+        oldDocument.active = ActivePolicy(listID: saved.id, mode: .allow, origin: .focus)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(oldDocument)) as? [String: Any])
+        json.removeValue(forKey: "focusPolicy")
+        try JSONSerialization.data(withJSONObject: json).write(to: directory.appendingPathComponent("library.json"))
+        let repository = LibraryRepository(directory: directory)
+        let restored = try repository.read()
+        XCTAssertEqual(restored.focusPolicy, restored.active)
+        try repository.update { $0.stop() }
+        let paused = try repository.read()
+        XCTAssertEqual(paused.pausedFocusPolicy?.listID, saved.id)
+        XCTAssertNil(paused.active)
+    }
+
+    func testOldInactiveDocumentDoesNotInventAContinuation() throws {
+        let document = try JSONDecoder().decode(LibraryDocument.self, from: JSONEncoder().encode(LibraryDocument()))
+        XCTAssertNil(document.focusPolicy)
+        XCTAssertNil(document.pausedFocusPolicy)
+    }
+
     private func plan(_ tokens: Set<String>, _ mode: PolicyMode) throws -> ShieldPlan<String> {
         try ShieldPlan(applications: tokens, categoryCount: 0, webCount: 0, valid: true, mode: mode)
     }

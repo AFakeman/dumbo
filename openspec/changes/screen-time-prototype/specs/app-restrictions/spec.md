@@ -37,7 +37,7 @@ Dumbo SHALL own one effective policy at a time. Switching policies SHALL remove 
 
 #### Scenario: Stop from the app
 - **WHEN** the person taps Stop
-- **THEN** Dumbo clears its restrictions and displays an inactive state
+- **THEN** Dumbo clears its restrictions and displays a paused state with Continue restrictions when a current Focus policy is retained, or hides App access when no such policy exists
 
 ### Requirement: Active list editing
 Dumbo SHALL reapply the active policy after successfully saving changes to its list. An edit that would invalidate an active allow-list SHALL be rejected without replacing the saved list or policy.
