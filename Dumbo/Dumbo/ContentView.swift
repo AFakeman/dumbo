@@ -120,7 +120,6 @@ struct ContentView: View {
                 reduceMotion ? .easeInOut(duration: 0.18) : .spring(response: 0.35, dampingFraction: 0.9),
                 value: showsActivePolicy
             )
-            .navigationTitle("Dumbo")
             .tint(.indigo)
             .sheet(item: $model.draft) { draft in
                 ListEditor(draft: draft) { value in
